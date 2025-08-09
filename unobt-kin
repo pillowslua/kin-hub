@@ -440,12 +440,12 @@ const initInterface = () => {
             <div class="nav-item" data-view="settings">🛠️</div>
           </div>
           <div class="nav-group-bottom">
-            <div class="profile-avatar">😺</div>
+            <div class="profile-avatar">👽</div>
           </div>
         </div>
         <div id="_main_content_area">
             <div class="card user-profile-card">
-                <div class="profile-avatar-large">🙂</div>
+                <div class="profile-avatar-large">👽</div>
                 <div class="user-info-text">
                     <h3>Chào mừng, <span id="_username_display"></span>!</h3>
                     <p><span id="_user_details"></span></p>
