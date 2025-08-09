@@ -1,0 +1,1202 @@
+// ==UserScript==
+// @name         Kin Hub
+// @namespace    https://duolingo.com/kinhub
+// @version      1.2
+// @author       Lamduck
+// @match        https://*.duolingo.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=moon.nasa.gov
+// @grant        none
+// @license      none
+// ==/UserScript==
+
+const VERSION = "1.2";
+const DELAY = 500;
+var jwt, defaultHeaders, userInfo, sub;
+let isRunning = false;
+
+// Đặt URL file raw trên GitHub của bro vào đây nha!
+// Ví dụ: "https://raw.githubusercontent.com/ten-repo-cua-bro/ten-repo/main/thong_bao.txt"
+// Hoặc link Gist: "https://gist.githubusercontent.com/username/gist_id/raw/filename.txt"
+const GITHUB_DEV_INFO_URL = "https://raw.githubusercontent.com/pillowslua/kin-hub/refs/heads/main/kin.text"; // Đây là URL mẫu, bro nhớ thay đổi nha!
+
+const initInterface = () => {
+  const containerHTML = `
+    <style>
+      :root {
+        --bg-dark: #1e2126; /* Main background */
+        --bg-medium: #282c34; /* Container background */
+        --bg-light: #33373e; /* Card background */
+        --text-light: #f0f0f0;
+        --text-medium: #a0a0a0;
+        --text-accent: #61dafb; /* Blue for title/accents */
+        --color-green: #28a745;
+        --color-red: #dc3545;
+        --color-blue: #007bff;
+        --color-orange: #ffc107;
+        --border-color: #3a3f47; /* Subtle border for cards/inputs */
+        --shadow-color: rgba(0, 0, 0, 0.4);
+        --border-radius: 8px;
+        --padding-card: 15px;
+        --gap-section: 15px;
+      }
+
+      #_container {
+        width: 95vw;
+        max-width: 900px; /* Wider to match image layout */
+        min-height: 50vh;
+        max-height: 90vh;
+        background: var(--bg-medium);
+        color: var(--text-light);
+        border-radius: var(--border-radius);
+        box-shadow: 0 4px 20px var(--shadow-color);
+        font-family: 'Segoe UI', sans-serif;
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+      }
+
+      #_header {
+        height: 55px;
+        background: var(--bg-dark);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0 15px;
+        box-sizing: border-box;
+        border-bottom: 1px solid var(--border-color);
+        -webkit-app-region: drag; /* Makes the header draggable */
+      }
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        -webkit-app-region: no-drag; /* Exclude elements from drag */
+      }
+
+      .moon-icon {
+        font-size: 1.5em;
+        color: var(--text-accent);
+      }
+
+      .app-title {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: var(--text-accent);
+      }
+
+      .app-url {
+        font-size: 0.8em;
+        color: var(--text-medium);
+      }
+
+      .header-right {
+        display: flex;
+        gap: 5px;
+      }
+
+      .header-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-medium);
+        font-size: 1.2em;
+        padding: 5px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+        -webkit-app-region: no-drag;
+      }
+      .header-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .header-btn.close-btn:hover {
+        background: var(--color-red);
+        color: white;
+      }
+
+
+      #_main_layout {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      #_sidebar {
+        width: 60px; /* Fixed width for sidebar */
+        background: var(--bg-dark);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 15px 0;
+        gap: 10px;
+        border-right: 1px solid var(--border-color);
+        justify-content: space-between;
+      }
+
+      .nav-group-top, .nav-group-bottom {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .nav-item {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px; /* Rounded rectangles */
+        color: var(--text-medium);
+        font-size: 1.4em;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+      .nav-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-light);
+      }
+      .nav-item.active {
+        background: var(--color-blue);
+        color: white;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+      }
+
+      .profile-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #444; /* Placeholder color */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5em; /* For emoji */
+        color: var(--text-light);
+        cursor: pointer;
+        border: 2px solid var(--border-color);
+        overflow: hidden;
+      }
+      .profile-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+
+      #_main_content_area {
+        flex: 1;
+        padding: var(--padding-card);
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* Two columns for cards */
+        grid-auto-rows: minmax(min-content, max-content); /* Rows auto-size */
+        gap: var(--gap-section);
+        overflow-y: auto; /* Scroll for content */
+      }
+      /* Special layout for first card to span 2 columns */
+      .user-profile-card {
+        grid-column: span 2;
+      }
+
+
+      .card {
+        background: var(--bg-light);
+        border-radius: var(--border-radius);
+        padding: var(--padding-card);
+        box-shadow: 0 2px 10px var(--shadow-color);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .card-title {
+        margin: 0;
+        font-size: 1.1em;
+        font-weight: bold;
+        color: var(--text-light);
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 5px;
+      }
+      .card-title.text-red { color: var(--color-red); }
+      .card-title.text-blue { color: var(--color-blue); }
+
+      .card-subtitle {
+        margin: -5px 0 5px 0;
+        font-size: 0.8em;
+        color: var(--text-medium);
+      }
+
+      .profile-avatar-large {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px; /* Rounded square */
+        background: #444; /* Placeholder */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5em; /* For emoji */
+        color: var(--text-light);
+        border: 2px solid var(--border-color);
+        overflow: hidden;
+      }
+      .profile-avatar-large img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .user-profile-card {
+        flex-direction: row;
+        align-items: center;
+        gap: 15px;
+      }
+      .user-info-text h3 {
+        margin: 0;
+        font-size: 1.5em;
+        color: var(--text-light);
+      }
+      .user-info-text p {
+        margin: 0;
+        font-size: 0.9em;
+        color: var(--text-medium);
+      }
+
+      .stats-grid, .friends-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Flexible columns */
+        gap: 10px;
+      }
+
+      .stat-item {
+        background: var(--bg-dark); /* Darker background for stat items */
+        border-radius: var(--border-radius);
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .stat-item span {
+        font-size: 0.8em;
+        color: var(--text-medium);
+      }
+      .stat-item strong {
+        font-size: 1.2em;
+        color: var(--text-light);
+        word-break: break-all;
+      }
+      /* Special colors for specific stat items as seen in image */
+      .stat-item.green-bg { background: rgba(40, 167, 69, 0.2); border: 1px solid var(--color-green); }
+      .stat-item.blue-bg { background: rgba(0, 123, 255, 0.2); border: 1px solid var(--color-blue); }
+      .stat-item.orange-bg { background: rgba(255, 193, 7, 0.2); border: 1px solid var(--color-orange); }
+
+
+      .action-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .kin-select {
+        width: 100%;
+        padding: 10px 15px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-dark);
+        color: var(--text-light);
+        font-size: 1em;
+        outline: none;
+        appearance: none;
+        background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23cccccc%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13.2-6.5H18.6c-5%200-9.3%201.8-13.2%206.5C1.8%2073.3%200%2077.5%200%2082.5c0%205%201.8%209.3%205.5%2013.2l128%20127.9c3.9%203.9%208.7%205.8%2013.5%205.8s9.6-1.9%2013.5-5.8L287%2095.7c3.7-3.9%205.5-8.2%205.5-13.2%200-5-1.8-9.2-5.5-13.1z%22/%3E%3C/svg%3E');
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 12px;
+        cursor: pointer;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+      }
+
+      .kin-button {
+        flex: 1;
+        padding: 10px 20px;
+        border-radius: 6px;
+        border: none;
+        font-size: 1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+        color: white;
+      }
+      .kin-button.green {
+        background: var(--color-green);
+        box-shadow: 0 4px 10px rgba(40, 167, 69, 0.4);
+      }
+      .kin-button.green:hover { background: #218838; }
+      .kin-button.red {
+        background: var(--color-red);
+        box-shadow: 0 4px 10px rgba(220, 53, 69, 0.4);
+      }
+      .kin-button.red:hover { background: #c82333; }
+      .kin-button.blue {
+        background: var(--color-blue);
+        box-shadow: 0 4px 10px rgba(0, 123, 255, 0.4);
+      }
+      .kin-button.blue:hover { background: #0056b3; }
+
+
+      #_notify {
+        min-height: 50px; /* Adjust as needed */
+        color: var(--color-orange); /* Yellowish for warnings */
+        font-size: 0.9em;
+        white-space: pre-wrap;
+      }
+
+      .discord-like-card { /* Re-purposed for developer info */
+        background: var(--bg-dark); /* Darker, like the discord button in image */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .discord-like-card .card-title {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      #_floating_btn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 180px; /* Wider for text */
+        height: 50px; /* Taller */
+        background: #000; /* Black background */
+        border-radius: 8px; /* Rectangular shape */
+        box-shadow: 0 0 8px #fff, 0 0 12px #fff, 0 0 16px #fff, /* White glow */
+                    0 0 20px #00FFFF, 0 0 35px #00FFFF, 0 0 50px #00FFFF, 0 0 70px #00FFFF; /* Cyan neon glow */
+        z-index: 10000;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2em; /* Adjust font size for text */
+        color: #fff; /* White text color */
+        font-weight: bold; /* Make text bolder */
+        text-shadow: 0 0 5px #fff, 0 0 10px #00FFFF; /* Text glow */
+        transition: box-shadow 0.3s ease, transform 0.2s ease;
+        border: 2px solid #fff; /* Subtle white border for neon effect */
+      }
+      #_floating_btn:hover {
+        transform: scale(1.05);
+        /* Keep neon effect, maybe make it slightly stronger or add another color shift */
+        box-shadow: 0 0 10px #fff, 0 0 15px #fff, 0 0 20px #fff,
+                    0 0 25px #00FFFF, 0 0 40px #00FFFF, 0 0 60px #00FFFF, 0 0 80px #00FFFF;
+      }
+
+      #_overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0,0,0,0.7);
+        z-index: 9998;
+        pointer-events: all;
+      }
+
+      .hidden{
+        display: none;
+      }
+    </style>
+    <div id="_overlay"></div>
+    <div id="_container">
+      <div id="_header">
+        <div class="header-left">
+          <span class="moon-icon">🌙</span>
+          <span class="app-title">Kin Hub</span>
+          <span class="app-url">duolingo.com/kinhub</span>
+        </div>
+        <div class="header-right">
+          <button class="header-btn" id="minimize-btn">_</button>
+          <button class="header-btn close-btn" id="close-btn">X</button>
+        </div>
+      </div>
+      <div id="_main_layout">
+        <div id="_sidebar">
+          <div class="nav-group-top">
+            <div class="nav-item active" data-view="home">🏠</div>
+            <div class="nav-item" data-view="code">⚙️</div>
+            <div class="nav-item" data-view="map">🗺️</div>
+            <div class="nav-item" data-view="users">👥</div>
+            <div class="nav-item" data-view="star">⭐</div>
+            <div class="nav-item" data-view="bell">🔔</div>
+            <div class="nav-item" data-view="settings">🛠️</div>
+          </div>
+          <div class="nav-group-bottom">
+            <div class="profile-avatar">😺</div>
+          </div>
+        </div>
+        <div id="_main_content_area">
+            <div class="card user-profile-card">
+                <div class="profile-avatar-large">🙂</div>
+                <div class="user-info-text">
+                    <h3>Chào mừng, <span id="_username_display"></span>!</h3>
+                    <p><span id="_user_details"></span></p>
+                </div>
+            </div>
+
+            <div class="card server-stats-card">
+                <h3 class="card-title">Thống kê Duolingo</h3>
+                <p class="card-subtitle">Thông tin tài khoản của bạn</p>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span>XP tổng</span>
+                        <strong id="_xp_display">0</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Streak hiện tại</span>
+                        <strong id="_streak_display">0</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Gem</span>
+                        <strong id="_gem_display">0</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Ngôn ngữ gốc</span>
+                        <strong id="_from_lang_display"></strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Đang học</span>
+                        <strong id="_learn_lang_display"></strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Ngày tham gia</span>
+                        <strong id="_creation_date_display"></strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card wave-notify-card">
+                <h3 class="card-title text-red">Thông báo từ Kin Hub</h3>
+                <p id="_notify">Hệ thống sẵn sàng.</p>
+            </div>
+
+            <div class="card action-card">
+                <h3 class="card-title">Chọn hành động</h3>
+                <p class="card-subtitle">Chọn loại farm và nhấn Bắt đầu</p>
+                <div class="action-controls">
+                    <select id="_select_option" class="kin-select">
+                        <!-- Options populated by JS -->
+                    </select>
+                    <div class="button-group">
+                        <button id="_start_btn" class="kin-button green">Bắt đầu Farm</button>
+                        <button id="_stop_btn" class="kin-button red" hidden>Dừng Farm</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card discord-like-card">
+                <h3 class="card-title text-blue">Thông tin Developer</h3>
+                <button id="_show_jwt_btn" class="kin-button blue">Xem Thông báo Developer</button>
+            </div>
+        </div>
+      </div>
+    </div>
+    <div id="_floating_btn">🌙 Kin Hub 🌙</div>
+  `;
+
+  const container = document.createElement("div");
+  container.innerHTML = containerHTML;
+  document.body.appendChild(container);
+
+  // Add event listeners for header buttons (optional, not strictly functional for userscript)
+  const minimizeBtn = document.getElementById("minimize-btn");
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener("click", () => {
+      updateNotify("Tính năng thu nhỏ chưa được hỗ trợ trên trình duyệt nha bro =))");
+    });
+  }
+  const closeBtn = document.getElementById("close-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      setInterfaceVisible(false); // Just hide the UI
+    });
+  }
+};
+
+const setInterfaceVisible = (visible) => {
+  const container = document.getElementById("_container");
+  const overlay = document.getElementById("_overlay");
+  if (container && overlay) {
+    container.style.display = visible ? "flex" : "none";
+    overlay.style.display = visible ? "block" : "none";
+  }
+};
+
+const isInterfaceVisible = () => {
+  const container = document.getElementById("_container");
+  return container && container.style.display !== "none" && container.style.display !== "";
+};
+
+const toggleInterface = () => {
+  setInterfaceVisible(!isInterfaceVisible());
+};
+
+const addEventFloatingBtn = () => {
+  const floatingBtn = document.getElementById("_floating_btn");
+  const startBtn = document.getElementById("_start_btn");
+  const stopBtn = document.getElementById("_stop_btn");
+  const select = document.getElementById("_select_option");
+  if (floatingBtn) {
+    floatingBtn.addEventListener("click", () => {
+      if (isRunning) {
+        if (confirm("Kin Hub đang farm. Bạn có muốn dừng và ẩn giao diện không?")) {
+          isRunning = false;
+          if (stopBtn) stopBtn.hidden = true;
+          if (startBtn) {
+            startBtn.hidden = false;
+            startBtn.disabled = true;
+            startBtn.classList.add("_disable_btn");
+          }
+          if (select) select.disabled = false;
+          setTimeout(() => {
+            if (startBtn) {
+              startBtn.classList.remove("_disable_btn");
+              startBtn.disabled = false;
+            }
+          }, 2000);
+          setInterfaceVisible(false);
+          return;
+        } else {
+          return; // Do nothing if not confirmed to stop
+        }
+      }
+      setInterfaceVisible(!isInterfaceVisible());
+    });
+  }
+};
+
+const addEventStartBtn = () => {
+  const startBtn = document.getElementById("_start_btn");
+  const stopBtn = document.getElementById("_stop_btn");
+  const select = document.getElementById("_select_option");
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
+      isRunning = true;
+      if (startBtn) startBtn.hidden = true;
+      if (stopBtn) {
+        stopBtn.hidden = false;
+        stopBtn.disabled = true;
+        stopBtn.classList.add("_disable_btn");
+      }
+      if (select) select.disabled = true;
+
+      const selected = select.options[select.selectedIndex];
+      const optionData = {
+        type: selected.getAttribute("data-type"),
+        amount: Number(selected.getAttribute("data-amount")),
+        from: selected.getAttribute("data-from"),
+        learn: selected.getAttribute("data-learn"),
+        value: selected.value,
+        label: selected.textContent,
+      };
+      await farmSelectedOption(optionData);
+
+      setTimeout(() => {
+        if (stopBtn) {
+          stopBtn.classList.remove("_disable_btn");
+          stopBtn.disabled = false;
+        }
+      }, 2000);
+    });
+  }
+};
+
+const addEventStopBtn = () => {
+  const startBtn = document.getElementById("_start_btn");
+  const stopBtn = document.getElementById("_stop_btn");
+  const select = document.getElementById("_select_option");
+  if (stopBtn) {
+    stopBtn.addEventListener("click", () => {
+      isRunning = false;
+      if (stopBtn) stopBtn.hidden = true;
+      if (startBtn) {
+        startBtn.hidden = false;
+        startBtn.disabled = true;
+        startBtn.classList.add("_disable_btn");
+      }
+      if (select) select.disabled = false;
+      setTimeout(() => {
+        if (startBtn) {
+          startBtn.classList.remove("_disable_btn");
+          startBtn.disabled = false;
+        }
+      }, 2000);
+    });
+  }
+};
+
+const addEventShowDeveloperInfoBtn = () => { // Đã đổi tên hàm cho dễ hiểu hơn
+  const showInfoBtn = document.getElementById("_show_jwt_btn"); // ID vẫn giữ nguyên là _show_jwt_btn
+  if (showInfoBtn) {
+    // showInfoBtn.textContent = "Xem Thông báo Developer"; // Đã đặt text trong HTML rồi
+    showInfoBtn.addEventListener("click", async () => {
+      updateNotify("Đang tải thông báo từ Developer... Xin chờ xíu nha bro!");
+      try {
+        const response = await fetch(GITHUB_DEV_INFO_URL);
+        if (!response.ok) {
+          throw new Error(`Không thể tải thông báo. Mã lỗi: ${response.status}`);
+        }
+        const text = await response.text();
+        updateNotify(`Thông báo từ Developer:\n${text}`);
+      } catch (error) {
+        updateNotify(`Lỗi khi tải thông báo: ${error.message}. Đảm bảo link GitHub đúng và có kết nối mạng nha bro!`);
+        console.error("Lỗi khi tải thông báo Developer:", error);
+      }
+    });
+  }
+};
+
+const addEventListeners = () => {
+  addEventFloatingBtn();
+  addEventStartBtn();
+  addEventStopBtn();
+  addEventShowDeveloperInfoBtn(); // Gọi hàm mới ở đây
+};
+
+const populateOptions = () => {
+  const select = document.getElementById("_select_option");
+  if (!select) return;
+  select.innerHTML = "";
+  const fromLang = userInfo?.fromLanguage || "ru";
+  const learnLang = userInfo?.learningLanguage || "en";
+
+  const options = [
+    { type: "gem", label: `Farm 30 Gem (Kim Cương)`, value: `gem-30`, amount: 30 },
+    {
+      type: "xp",
+      label: `Farm 499 XP (Từ ${fromLang.toUpperCase()} sang EN)`,
+      value: `xp-499`,
+      amount: 499,
+      from: fromLang,
+      learn: "en",
+    },
+    {
+      type: "streak",
+      label: `Sửa Streak bị đóng băng`,
+      value: `repair`,
+    },
+    {
+      type: "streak",
+      label: `Farm Streak (Beta Test)`,
+      value: `farm`,
+    },
+  ];
+  options.forEach((opt) => {
+    const option = document.createElement("option");
+    option.value = opt.value;
+    option.textContent = opt.label;
+    option.setAttribute("data-type", opt.type);
+    option.setAttribute("data-amount", opt.amount);
+    option.setAttribute("data-from", opt.from);
+    option.setAttribute("data-learn", opt.learn);
+    select.appendChild(option);
+  });
+};
+
+const updateNotify = (message) => {
+  const notify = document.getElementById("_notify");
+  if (notify) {
+    const now = new Date().toLocaleTimeString('vi-VN'); // Vietnamese time format
+    notify.innerText = `[${now}] ` + message;
+  }
+};
+
+const disableInterface = (notifyMessage = "") => {
+  const startBtn = document.getElementById("_start_btn");
+  const stopBtn = document.getElementById("_stop_btn");
+  const select = document.getElementById("_select_option");
+
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.classList.add("_disable_btn");
+  }
+  if (stopBtn) {
+    stopBtn.disabled = true;
+  }
+  if (select) {
+    select.disabled = true;
+  }
+
+  if (notifyMessage) {
+    updateNotify(notifyMessage);
+  }
+};
+
+const resetStartStopBtn = () => {
+  isRunning = false;
+  const startBtn = document.getElementById("_start_btn");
+  const stopBtn = document.getElementById("_stop_btn");
+  const select = document.getElementById("_select_option");
+
+  if (stopBtn) stopBtn.hidden = true;
+  if (startBtn) {
+    startBtn.hidden = false;
+    startBtn.disabled = true;
+    startBtn.classList.add("_disable_btn");
+  }
+  if (select) select.disabled = false;
+  setTimeout(() => {
+    if (startBtn) {
+      startBtn.classList.remove("_disable_btn");
+      startBtn.disabled = false;
+    }
+  }, 2000);
+};
+
+const blockStopBtn = () => {
+  const stopBtn = document.getElementById("_stop_btn");
+  if (stopBtn) {
+    stopBtn.disabled = true;
+    stopBtn.classList.add("_disable_btn");
+  }
+};
+
+const unblockStopBtn = () => {
+  const stopBtn = document.getElementById("_stop_btn");
+  if (stopBtn) {
+    stopBtn.disabled = false;
+    stopBtn.classList.remove("_disable_btn");
+  }
+};
+
+//--------------------Logic (Unchanged)--------------------//
+
+const getJwtToken = () => {
+  var cookies = document.cookie.split(";");
+  for (var i = 0; i < cookies.length; i++) {
+    var cookie = cookies[i].trim();
+    if (cookie.startsWith("jwt_token=")) {
+      return cookie.substring("jwt_token=".length);
+    }
+  }
+  return null;
+};
+
+const decodeJwtToken = (token) => {
+  var base64Url = token.split(".")[1];
+  var base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  var jsonPayload = decodeURIComponent(
+    atob(base64)
+      .split("")
+      .map(function (c) {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      })
+      .join("")
+  );
+  return JSON.parse(jsonPayload);
+};
+
+const formatHeaders = (jwt) => ({
+  "Content-Type": "application/json",
+  Authorization: "Bearer " + jwt,
+  "User-Agent": navigator.userAgent,
+});
+
+const getUserInfo = async (sub) => {
+  const userInfoUrl = `https://www.duolingo.com/2017-06-30/users/${sub}?fields=id,username,fromLanguage,learningLanguage,streak,totalXp,level,numFollowers,numFollowing,gems,creationDate,streakData`;
+  let response = await fetch(userInfoUrl, {
+    method: "GET",
+    headers: defaultHeaders,
+  });
+  return await response.json();
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const updateUserInfo = () => {
+  const usernameDisplay = document.getElementById("_username_display");
+  const userDetails = document.getElementById("_user_details");
+  const xpDisplay = document.getElementById("_xp_display");
+  const streakDisplay = document.getElementById("_streak_display");
+  const gemDisplay = document.getElementById("_gem_display");
+  const fromLangDisplay = document.getElementById("_from_lang_display");
+  const learnLangDisplay = document.getElementById("_learn_lang_display");
+  const creationDateDisplay = document.getElementById("_creation_date_display");
+
+  if (userInfo) {
+    if (usernameDisplay) usernameDisplay.innerText = userInfo.username;
+    if (userDetails) userDetails.innerText = `${userInfo.username} - ${userInfo.fromLanguage.toUpperCase()} -> ${userInfo.learningLanguage.toUpperCase()}`;
+    if (fromLangDisplay) fromLangDisplay.innerText = userInfo.fromLanguage.toUpperCase();
+    if (learnLangDisplay) learnLangDisplay.innerText = userInfo.learningLanguage.toUpperCase();
+    if (streakDisplay) streakDisplay.innerText = userInfo.streak;
+    if (gemDisplay) gemDisplay.innerText = userInfo.gems;
+    if (xpDisplay) xpDisplay.innerText = userInfo.totalXp;
+    if (creationDateDisplay) {
+        const date = new Date(userInfo.creationDate);
+        creationDateDisplay.innerText = date.toLocaleDateString('vi-VN'); // Format date for Vietnam
+    }
+  }
+};
+
+const toTimestamp = (dateStr) => {
+  return Math.floor(new Date(dateStr).getTime() / 1000);
+};
+
+const daysBetween = (startTimestamp, endTimestamp) => {
+  return Math.floor((endTimestamp - startTimestamp) / (60 * 60 * 24));
+};
+
+const sendRequest = async ({ url, payload, headers, method = "PUT" }) => {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    return res;
+  } catch (error) {
+    return error;
+  }
+};
+
+const sendRequestWithDefaultHeaders = async ({
+  url,
+  payload,
+  headers = {},
+  method = "GET",
+}) => {
+  const mergedHeaders = { ...defaultHeaders, ...headers };
+  return sendRequest({ url, payload, headers: mergedHeaders, method });
+};
+
+const farmGemOnce = async () => {
+  const idReward =
+    "SKILL_COMPLETION_BALANCED-dd2495f4_d44e_3fc3_8ac8_94e2191506f0-2-GEMS";
+  const patchUrl = `https://www.duolingo.com/2017-06-30/users/${sub}/rewards/${idReward}`;
+  const patchData = {
+    consumed: true,
+    learningLanguage: userInfo.learningLanguage,
+    fromLanguage: userInfo.fromLanguage,
+  };
+  return await sendRequestWithDefaultHeaders({
+    url: patchUrl,
+    payload: patchData,
+    method: "PATCH",
+  });
+};
+
+const farmGemLoop = async () => {
+  const gemFarmed = 30;
+  while (isRunning) {
+    try {
+      await farmGemOnce();
+      userInfo = { ...userInfo, gems: userInfo.gems + gemFarmed };
+      updateNotify(`Bạn vừa nhận được ${gemFarmed} Gem!!!`);
+      updateUserInfo();
+      await delay(DELAY);
+    } catch (error) {
+      updateNotify(
+        `Lỗi ${error.status || error}! Vui lòng quay màn hình lại và báo cáo trong nhóm Telegram (nếu có)!`
+      );
+      await delay(DELAY + 1000);
+    }
+  }
+};
+
+const farmXpOnce = async (amount) => {
+  const startTime = Math.floor(Date.now() / 1000);
+  const fromLanguage = userInfo.fromLanguage;
+  const completeUrl = `https://stories.duolingo.com/api2/stories/en-${fromLanguage}-the-passport/complete`;
+  const payload = {
+    awardXp: true,
+    isFeaturedStoryInPracticeHub: false,
+    completedBonusChallenge: true,
+    mode: "READ",
+    isV2Redo: false,
+    isV2Story: false,
+    isLegendaryMode: true,
+    masterVersion: false,
+    maxScore: 0,
+    numHintsUsed: 0,
+    score: 0,
+    startTime: startTime,
+    fromLanguage: fromLanguage,
+    learningLanguage: "en",
+    hasXpBoost: false,
+    happyHourBonusXp: 449,
+  };
+  return await sendRequestWithDefaultHeaders({
+    url: completeUrl,
+    payload: payload,
+    headers: defaultHeaders,
+    method: "POST",
+  });
+};
+
+const farmXpLoop = async (amount) => {
+  while (isRunning) {
+    try {
+      const response = await farmXpOnce(amount);
+      if (response.status == 500) {
+        updateNotify(
+          "Hãy đảm bảo bạn đang học khóa tiếng Anh (ngôn ngữ học phải là EN)!"
+        );
+        await delay(DELAY + 1000);
+        continue;
+      }
+      const responseData = await response.json();
+      const xpFarmed = responseData?.awardedXp || 0;
+      userInfo = { ...userInfo, totalXp: userInfo.totalXp + xpFarmed };
+      updateNotify(`Bạn vừa nhận được ${xpFarmed} XP!!!`);
+      updateUserInfo();
+      await delay(DELAY);
+    } catch (error) {
+      updateNotify(
+        `Lỗi ${error.status || error}! Vui lòng quay màn hình lại và báo cáo trong nhóm Telegram (nếu có)!`
+      );
+      await delay(DELAY + 1000);
+    }
+  }
+};
+
+const farmSessionOnce = async (startTime, endTime) => {
+  //tạo và lấy session
+  const sessionPayload = {
+    challengeTypes: [
+      "assist",
+      "characterIntro",
+      "characterMatch",
+      "characterPuzzle",
+      "characterSelect",
+      "characterTrace",
+      "characterWrite",
+      "completeReverseTranslation",
+      "definition",
+      "dialogue",
+      "extendedMatch",
+      "extendedListenMatch",
+      "form",
+      "freeResponse",
+      "gapFill",
+      "judge",
+      "listen",
+      "listenComplete",
+      "listenMatch",
+      "match",
+      "name",
+      "listenComprehension",
+      "listenIsolation",
+      "listenSpeak",
+      "listenTap",
+      "orderTapComplete",
+      "partialListen",
+      "partialReverseTranslate",
+      "patternTapComplete",
+      "radioBinary",
+      "radioImageSelect",
+      "radioListenMatch",
+      "radioListenRecognize",
+      "radioSelect",
+      "readComprehension",
+      "reverseAssist",
+      "sameDifferent",
+      "select",
+      "selectPronunciation",
+      "selectTranscription",
+      "svgPuzzle",
+      "syllableTap",
+      "syllableListenTap",
+      "speak",
+      "tapCloze",
+      "tapClozeTable",
+      "tapComplete",
+      "tapCompleteTable",
+      "tapDescribe",
+      "translate",
+      "transliterate",
+      "transliterationAssist",
+      "typeCloze",
+      "typeClozeTable",
+      "typeComplete",
+      "typeCompleteTable",
+      "writeComprehension",
+    ],
+    fromLanguage: userInfo.fromLanguage,
+    isFinalLevel: false,
+    isV2: true,
+    juicy: true,
+    learningLanguage: userInfo.learningLanguage,
+    smartTipsVersion: 2,
+    type: "GLOBAL_PRACTICE",
+  };
+  const sessionRes = await sendRequestWithDefaultHeaders({
+    url: "https://www.duolingo.com/2017-06-30/sessions",
+    payload: sessionPayload,
+    method: "POST",
+  });
+  const sessionData = await sessionRes.json();
+
+  // lấy session và gán vào update
+  const updateSessionPayload = {
+    ...sessionData,
+    heartsLeft: 0,
+    startTime: startTime,
+    enableBonusPoints: false,
+    endTime: endTime,
+    failed: false,
+    maxInLessonStreak: 9,
+    shouldLearnThings: true,
+  };
+  const updateRes = await sendRequestWithDefaultHeaders({
+    url: `https://www.duolingo.com/2017-06-30/sessions/${sessionData.id}`,
+    payload: updateSessionPayload,
+    method: "PUT",
+  });
+  return await updateRes.json();
+};
+
+const repairStreak = async () => {
+  blockStopBtn();
+  try {
+    if (!userInfo.streakData.currentStreak) {
+      updateNotify("Bạn không có streak! Đã hủy!");
+      resetStartStopBtn();
+      return; // Add return to prevent further execution
+    }
+
+    const startStreakDate = userInfo.streakData.currentStreak.startDate;
+    const endStreakDate = userInfo.streakData.currentStreak.endDate;
+
+    const startStreakTimestamp = toTimestamp(startStreakDate);
+    const endStreakTimestamp = toTimestamp(endStreakDate);
+    const expectedStreak =
+      daysBetween(startStreakTimestamp, endStreakTimestamp) + 1;
+
+    if (expectedStreak > userInfo.streak) {
+      updateNotify("Streak của bạn đang bị đóng băng! Đang sửa...");
+      await delay(2000);
+
+      let currentTimestamp = Math.floor(Date.now() / 1000);
+      for (let i = 0; i < expectedStreak; i++) {
+        const createdSession = await farmSessionOnce(
+          currentTimestamp,
+          currentTimestamp + 60
+        );
+        currentTimestamp -= 86400; // Go back one day
+        updateNotify(`Đang cố gắng sửa streak (${i + 1}/${expectedStreak})...`);
+        await delay(DELAY);
+      }
+
+      const userAfterRepair = await getUserInfo(sub);
+      if (userAfterRepair.streak >= expectedStreak) { // Check if streak is at least expected
+        updateNotify(`Streak của bạn đã được sửa! Không còn bị đóng băng nữa!`);
+        userInfo = userAfterRepair;
+        updateUserInfo();
+      } else {
+        updateNotify(
+          `Sửa streak thất bại hoặc không có streak bị đóng băng! Vui lòng kiểm tra tài khoản của bạn!`
+        );
+      }
+    } else {
+      updateNotify("Bạn không có streak bị đóng băng! Không cần sửa!");
+    }
+  } catch (error) {
+    updateNotify(`Lỗi khi sửa streak: ${error?.message || error}`);
+  } finally {
+    unblockStopBtn();
+    resetStartStopBtn(); // Reset buttons after repair attempt
+  }
+};
+
+const farmStreakLoop = async () => {
+  const hasStreak = !!userInfo.streakData.currentStreak;
+  const startStreakDate = hasStreak
+    ? userInfo.streakData.currentStreak.startDate
+    : new Date();
+
+  let currentTimestamp = hasStreak
+    ? toTimestamp(startStreakDate) - 86400 // If has streak, farm from day before current streak start
+    : Math.floor(Date.now() / 1000); // If no streak, start from today
+
+  while (isRunning) {
+    try {
+      const sessionRes = await farmSessionOnce(currentTimestamp, currentTimestamp + 60);
+      if (sessionRes) {
+        currentTimestamp -= 86400; // Move to the previous day for next session
+        userInfo = { ...userInfo, streak: userInfo.streak + 1 };
+        updateNotify(`Bạn vừa nhận thêm +1 streak!`);
+        updateUserInfo();
+        await delay(DELAY);
+      } else {
+        updateNotify("Không thể farm streak session, đang thử lại...");
+        await delay(2000);
+        continue;
+      }
+    } catch (error) {
+      updateNotify(`Lỗi khi farm Streak: ${error?.message || error}`);
+      await delay(2000);
+      continue;
+    }
+    await delay(DELAY); // Ensure a delay even if sessionRes fails, to prevent infinite loops on error
+  }
+}
+
+const farmSelectedOption = async (option) => {
+  const { type, value, amount, from, learn } = option;
+
+  switch (type) {
+    case "gem":
+      farmGemLoop();
+      break;
+    case "xp":
+      farmXpLoop(amount);
+      break;
+    case "streak":
+      if (value == "repair") {
+        repairStreak();
+      } else if (value == "farm") {
+        farmStreakLoop();
+      }
+      break;
+  }
+};
+
+const initVariables = async () => {
+  jwt = getJwtToken();
+  if (!jwt) {
+    disableInterface("Vui lòng đăng nhập vào Duolingo và tải lại trang!");
+    return;
+  }
+  defaultHeaders = formatHeaders(jwt);
+  const decodedJwt = decodeJwtToken(jwt);
+  sub = decodedJwt.sub;
+  try {
+    userInfo = await getUserInfo(sub);
+    if (!userInfo || !userInfo.username) {
+        throw new Error("Không thể lấy thông tin người dùng.");
+    }
+    populateOptions();
+    updateUserInfo();
+  } catch (error) {
+    disableInterface(`Lỗi khi tải thông tin người dùng: ${error.message}. Vui lòng kiểm tra kết nối hoặc đăng nhập lại.`);
+    console.error("Error fetching user info:", error);
+    return;
+  }
+};
+
+//--------------------Main--------------------//
+
+(async () => {
+  initInterface();
+  setInterfaceVisible(false);
+  addEventListeners();
+  await initVariables();
+})();
