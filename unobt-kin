@@ -421,7 +421,7 @@ const initInterface = () => {
         <div class="header-left">
           <span class="moon-icon">🌙</span>
           <span class="app-title">Kin Hub</span>
-          <span class="app-url">duolingo.com/kinhub</span>
+          <span class="app-url">https://discord.gg/m3EV55SpYw</span>
         </div>
         <div class="header-right">
           <button class="header-btn" id="minimize-btn">_</button>
@@ -453,7 +453,7 @@ const initInterface = () => {
             </div>
 
             <div class="card server-stats-card">
-                <h3 class="card-title">Thống kê Duolingo</h3>
+                <h3 class="card-title">Bảng thống kê</h3>
                 <p class="card-subtitle">Thông tin tài khoản của bạn</p>
                 <div class="stats-grid">
                     <div class="stat-item">
@@ -503,8 +503,8 @@ const initInterface = () => {
             </div>
 
             <div class="card discord-like-card">
-                <h3 class="card-title text-blue">Thông tin Developer</h3>
-                <button id="_show_jwt_btn" class="kin-button blue">Xem Thông báo Developer</button>
+                <h3 class="card-title text-blue">Bảng thông báo</h3>
+                <button id="_show_jwt_btn" class="kin-button blue">Check thông báo từ Developer</button>
             </div>
         </div>
       </div>
@@ -679,10 +679,10 @@ const populateOptions = () => {
   const learnLang = userInfo?.learningLanguage || "en";
 
   const options = [
-    { type: "gem", label: `Farm 30 Gem (Kim Cương)`, value: `gem-30`, amount: 30 },
+    { type: "gem", label: `Farm Gem`, value: `gem-30`, amount: 30 },
     {
       type: "xp",
-      label: `Farm 499 XP (Từ ${fromLang.toUpperCase()} sang EN)`,
+      label: `Farm XP`,
       value: `xp-499`,
       amount: 499,
       from: fromLang,
@@ -690,12 +690,12 @@ const populateOptions = () => {
     },
     {
       type: "streak",
-      label: `Sửa Streak bị đóng băng`,
+      label: `Khôi phục streaks`,
       value: `repair`,
     },
     {
       type: "streak",
-      label: `Farm Streak (Beta Test)`,
+      label: `Farm Streaks`,
       value: `farm`,
     },
   ];
